@@ -13,8 +13,10 @@ connectDB();
 
 const app = express();
 
-const allowedOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173").split(",");
-app.use(cors({ origin: allowedOrigins }));
+const allowedOrigins = (
+  process.env.CLIENT_ORIGIN || "http://localhost:5173"
+).split(",");
+app.use(cors({ origin: "*", credentials: true }));
 app.use(express.json());
 
 // Serve uploaded marksheet files
@@ -32,7 +34,9 @@ app.use("/api/timetable", timetableRoutes);
 // Multer / general error handler
 app.use((err, req, res, next) => {
   if (err) {
-    return res.status(400).json({ message: err.message || "Something went wrong." });
+    return res
+      .status(400)
+      .json({ message: err.message || "Something went wrong." });
   }
   next();
 });
