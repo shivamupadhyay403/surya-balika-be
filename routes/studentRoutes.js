@@ -7,7 +7,7 @@ const { VALID_CLASSES } = require("../config/constants");
 // @route   GET /api/students?class=8&search=meera
 // @desc    List/search students (used by admin panel and public search-assist)
 // @access  Public read (no marks or personal contact info is exposed, just name/roll/class)
-router.get("/", async (req, res) => {
+router.get("/", protectAdmin,async (req, res) => {
   try {
     const { class: className, search } = req.query;
     const filter = {};
