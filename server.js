@@ -9,6 +9,7 @@ const studentRoutes = require("./routes/studentRoutes");
 const marksheetRoutes = require("./routes/marksheetRoutes");
 const timetableRoutes = require("./routes/timetableRoutes");
 const announcementRoutes = require("./routes/announcementRoutes");
+const examtimetableRoutes = require("./routes/examtimetableRoutes");
 connectDB();
 
 const app = express();
@@ -31,6 +32,7 @@ app.use("/api/students", studentRoutes);
 app.use("/api/marksheets", marksheetRoutes);
 app.use("/api/timetable", timetableRoutes);
 app.use("/api/announcements", announcementRoutes);
+app.use("/api/exam", examtimetableRoutes);
 // Multer / general error handler
 app.use((err, req, res, next) => {
   if (err) {
