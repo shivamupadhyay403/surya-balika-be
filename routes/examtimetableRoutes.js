@@ -1,38 +1,8 @@
 const express = require("express");
 const router = express.Router();
-const multer = require("multer");
 const ExamTimetable = require("../models/ExamTimetable");
 const { protectAdmin } = require("../middleware/auth");
 const { VALID_CLASSES } = require("../config/constants");
-
-// CSV sheets are tiny — parse straight from memory, no need to touch disk like the marksheet uploads do
-const csvUpload = multer({
-  storage: multer.memoryStorage(),
-  fileFilter: (req, file, cb) => {
-    const isCsv = file.mimetype === "text/csv" || file.originalname.toLowerCase().endsWith(".csv");
-    cb(isCsv ? null : new Error("Only .csv files are allowed"), isCsv);
-  },
-  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB is plenty for a timetable sheet
-});
-
-// Minimal CSV parser (no external dep) — assumes no embedded commas in any field,
-// which is fine for a timetable sheet. Expected header:
-// class,subject,examName,session,examDate,startTime,endTime,room
-function parseCsvBuffer(buffer) {
-  const lines = buffer
-    .toString("utf-8")
-    .split(/\r?\n/)
-    .filter((line) => line.trim() !== "");
-  if (lines.length < 2) return [];
-  const header = lines[0].split(",").map((h) => h.trim());
-  return lines.slice(1).map((line) => {
-    const cells = line.split(",").map((c) => c.trim());
-    const row = {};
-    header.forEach((key, i) => (row[key] = cells[i] ?? ""));
-    return row;
-  });
-}
-
 // @route   GET /api/timetable/search?class=8
 // @desc    Public: student view of the exam timetable for a class
 // @access  Public
@@ -113,84 +83,10 @@ router.post("/", protectAdmin, async (req, res) => {
   }
 });
 
-// @route   POST /api/timetable/upload
-// @desc    Admin: bulk upload a CSV of exam slots
-//          Headers: class,subject,examName,session,examDate,startTime,endTime,room
-//          examDate format: YYYY-MM-DD
-// @access  Private (admin)
-router.post("/upload", protectAdmin, csvUpload.single("file"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: "Please attach a .csv file." });
-    }
-
-    const rows = parseCsvBuffer(req.file.buffer);
-    if (rows.length === 0) {
-      return res.status(400).json({ message: "CSV file has no data rows." });
-    }
-
-    const toInsert = [];
-    const skipped = [];
-
-    rows.forEach((row, i) => {
-      const rowNum = i + 2; // +1 for header row, +1 for 0-index
-      const { class: className, subject, examName, session, examDate, startTime, endTime, room } = row;
-
-      if (!className || !subject || !examName || !session || !examDate || !startTime || !endTime) {
-        skipped.push({ row: rowNum, reason: "Missing required field(s)." });
-        return;
-      }
-      if (!VALID_CLASSES.includes(className)) {
-        skipped.push({ row: rowNum, reason: `"${className}" is not a valid class.` });
-        return;
-      }
-      const parsedDate = new Date(examDate);
-      if (isNaN(parsedDate.getTime())) {
-        skipped.push({ row: rowNum, reason: `Invalid examDate "${examDate}". Use YYYY-MM-DD.` });
-        return;
-      }
-
-      toInsert.push({
-        class: className,
-        subject: subject.trim(),
-        examName: examName.trim(),
-        session: session.trim(),
-        examDate: parsedDate,
-        startTime: startTime.trim(),
-        endTime: endTime.trim(),
-        room: room ? room.trim() : "TBA",
-        uploadedBy: req.admin._id,
-      });
-    });
-
-    let inserted = [];
-    if (toInsert.length > 0) {
-      try {
-        // ordered:false so one bad/duplicate row doesn't block the rest of the batch
-        inserted = await ExamTimetable.insertMany(toInsert, { ordered: false });
-      } catch (bulkErr) {
-        inserted = bulkErr.insertedDocs || [];
-        (bulkErr.writeErrors || []).forEach((we) => {
-          skipped.push({ row: "?", reason: "Duplicate slot (same class/exam/session/subject) or invalid data." });
-        });
-      }
-    }
-
-    res.status(201).json({
-      message: `${inserted.length} exam slot(s) uploaded.`,
-      insertedCount: inserted.length,
-      skippedCount: skipped.length,
-      skipped,
-    });
-  } catch (err) {
-    res.status(500).json({ message: "Upload failed.", error: err.message });
-  }
-});
-
 // @route   PUT /api/timetable/:id
 // @desc    Admin: edit an exam slot
 // @access  Private (admin)
-router.put("/:id", protectAdmin, async (req, res) => {
+router.put("/update/:id", protectAdmin, async (req, res) => {
   try {
     const updates = { ...req.body };
 

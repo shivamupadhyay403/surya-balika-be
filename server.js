@@ -32,7 +32,7 @@ app.use("/api/students", studentRoutes);
 app.use("/api/marksheets", marksheetRoutes);
 app.use("/api/timetable", timetableRoutes);
 app.use("/api/announcements", announcementRoutes);
-app.use("/api/exam", examtimetableRoutes);
+app.use("/api/exam-timetable", examtimetableRoutes);
 // Multer / general error handler
 app.use((err, req, res, next) => {
   if (err) {
